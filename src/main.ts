@@ -4,6 +4,7 @@ import fastify, { FastifyReply } from "fastify";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import cors from "@fastify/cors";
+import path from "path";
 
 import {
   jsonSchemaTransform,
@@ -41,6 +42,7 @@ if (!configJson.no_docs) {
 
   app.register(fastifySwaggerUI, {
     routePrefix: "/docs",
+    baseDir: process.env.IS_PACKED ? path.join(__dirname, "static") : undefined,
   });
 }
 
