@@ -75,6 +75,12 @@ The server currently supports the following endpoints:
 > **Note**: `/v1/completions` is not supported because Gemini models do not support completion functionality, and Google's PaLM model (which does) is likely to be deprecated.  
 
 
+## Roadmap
+
+- [x] v1
+- [ ] 支持配置多个 api key ，并且可以轮询、分配权限、重试等调度操作
+- [ ] 支持配置和切换代理
+
 ## Building the Project  
 
 ```

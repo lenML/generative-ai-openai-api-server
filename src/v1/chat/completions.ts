@@ -192,6 +192,7 @@ class ChatCompletionsHandler {
         const is_hit_err = retry_error.some((x) => err instanceof x);
         if (is_hit_err === false) {
           bail(err);
+          if (err) err.bail = true;
         }
         throw err; // 触发重试
       }
@@ -519,7 +520,12 @@ const chatCompletionsRoute: FastifyPluginAsync = async (app) => {
     url: "/v1/chat/completions",
     schema: { body: CHAT_COMPLETION_SCHEMA },
     handler: async (req, reply) => {
-      const handler = new ChatCompletionsHandler(app, req.body, req, reply);
+      const handler = new ChatCompletionsHandler(
+        app,
+        req.body as any,
+        req,
+        reply
+      );
       await handler.processRequest();
     },
   });
