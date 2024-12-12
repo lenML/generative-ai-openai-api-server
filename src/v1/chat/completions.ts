@@ -189,8 +189,18 @@ class ChatCompletionsHandler {
       try {
         return await operation();
       } catch (err: any) {
-        const is_hit_err = retry_error.some((x) => err instanceof x);
-        if (is_hit_err === false) {
+        let need_retry = true;
+        if (retry_error.some((x) => err instanceof x)) {
+          need_retry = false;
+        }
+        if (
+          err instanceof GoogleGenerativeAIResponseError &&
+          err.response.promptFeedback.blockReason
+        ) {
+          // NOTE: 如果 block 了直接退出不需要retry
+          need_retry = false;
+        }
+        if (need_retry === false) {
           bail(err);
           if (err) err.bail = true;
         }
