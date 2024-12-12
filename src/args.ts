@@ -33,6 +33,7 @@ export const configJson = JSON.parse(fs.readFileSync(config, "utf8")) as {
       log?: boolean;
     };
   };
+  bodyLimit?: number;
 };
 
 if (configJson.api_key === "") {

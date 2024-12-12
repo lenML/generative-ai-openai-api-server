@@ -21,8 +21,10 @@ import v1_embeddings from "./v1/embeddings";
 
 import { configJson } from "./args";
 
+const s_10mb = 10 * 1024 * 1024;
 const app = fastify({
   logger: true,
+  bodyLimit: Math.max(configJson?.bodyLimit ?? 0, s_10mb) ?? 1024 * 1024 * 50, // 50MB
 });
 app.setValidatorCompiler(validatorCompiler);
 app.setSerializerCompiler(serializerCompiler);

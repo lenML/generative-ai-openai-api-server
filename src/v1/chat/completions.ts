@@ -52,7 +52,7 @@ const CHAT_COMPLETION_SCHEMA = z.object({
                 text: z.string(),
               }),
               z.object({
-                type: z.literal("image"),
+                type: z.literal("image_url"),
                 image_url: z.object({
                   url: z.string(),
                 }),
@@ -257,7 +257,7 @@ class ChatCompletionsHandler {
                 text: y.text,
               };
             }
-            if (y.type === "image") {
+            if (y.type === "image_url") {
               let url = y.image_url.url;
               if (url.startsWith("http")) {
                 const image = await fetch(y.image_url.url);
@@ -286,6 +286,7 @@ class ChatCompletionsHandler {
                 };
               }
             }
+            // NOTE: 目前不支持音频，因为不知道怎么测也不通用
             throw new Error(`not support content type: ${y.type}`);
           })
         );
@@ -401,6 +402,10 @@ class ChatCompletionsHandler {
 
   private async handleStream() {
     const payload = await this.buildGeneratePayload();
+    // writeFileSync(
+    //   "./tmp_payload.json",
+    //   JSON.stringify({ ...payload, id: this.id }, null, 2)
+    // );
     const abortSignal = new AbortController();
     const result = await payload.gen_model.generateContentStream(
       {
