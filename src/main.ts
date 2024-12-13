@@ -78,13 +78,14 @@ app.after(async () => {
 async function run() {
   await app.ready();
 
-  await app.listen({
+  const address = await app.listen({
+    host: "0.0.0.0",
     port: configJson.server?.port ?? 4949,
   });
 
-  console.log(`Server running at http://localhost:4949`);
+  console.log(`Server running at ${address}`);
   if (!configJson.no_docs) {
-    console.log(`Documentation running at http://localhost:4949/docs`);
+    console.log(`Documentation running at ${address}/docs`);
   }
 }
 
