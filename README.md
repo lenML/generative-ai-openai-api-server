@@ -33,7 +33,7 @@ main.exe -c my_owner.config.json
 The server uses a JSON-based configuration file. Below is a basic example:  
 ```json
 {
-  "api_key": "sk-xxx",
+  "api_keys": ["sk-xxx"],
   "server": {
     "port": 4949
   }
@@ -44,7 +44,7 @@ The server uses a JSON-based configuration file. Below is a basic example:
 Here is a complete list of configurable parameters:
 ```ts  
 type Params = {
-  api_key: string;
+  api_keys: string[];
   server?: {
     port?: number;
   };
@@ -78,7 +78,9 @@ The server currently supports the following endpoints:
 ## Roadmap
 
 - [x] v1
-- [ ] 支持配置多个 api key ，并且可以轮询、分配权限、重试等调度操作
+- [x] 支持配置多个 api key ，并且可以轮询
+  - [ ] 权重分配
+  - [ ] 重试/调度/logs
 - [ ] 支持配置和切换代理
 
 ## Building the Project

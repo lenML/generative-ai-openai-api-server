@@ -16,7 +16,7 @@ if (!fs.existsSync(config)) {
 }
 
 export const configJson = JSON.parse(fs.readFileSync(config, "utf8")) as {
-  api_key: string;
+  api_keys: string[];
   server?: {
     port?: number;
   };
@@ -36,7 +36,7 @@ export const configJson = JSON.parse(fs.readFileSync(config, "utf8")) as {
   bodyLimit?: number;
 };
 
-if (configJson.api_key === "") {
+if (configJson.api_keys.length === 0) {
   console.log("api_key is empty");
   process.exit(1);
 }

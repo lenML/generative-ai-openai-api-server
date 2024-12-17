@@ -6,10 +6,9 @@ import {
 } from "fastify";
 import { object, z } from "zod";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
-import { genAI } from "src/genAI";
+import { gen_ai_hub } from "src/genAI";
 import fetch from "src/utils/fetch";
 import {
-  EnhancedGenerateContentResponse,
   GenerationConfig,
   GoogleGenerativeAIError,
   GoogleGenerativeAIFetchError,
@@ -238,6 +237,10 @@ class ChatCompletionsHandler {
       frequency_penalty,
       presence_penalty,
     } = body;
+    const genAI = gen_ai_hub.random();
+    if (!genAI) {
+      throw new Error("no genai available");
+    }
     const gen_model = genAI.getGenerativeModel({
       model: model,
     });
