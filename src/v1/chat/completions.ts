@@ -9,6 +9,7 @@ import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { gen_ai_hub } from "src/genAI";
 import fetch from "src/utils/fetch";
 import {
+  GenerateContentResponse,
   GenerationConfig,
   GoogleGenerativeAIError,
   GoogleGenerativeAIFetchError,
@@ -23,17 +24,24 @@ import retry from "async-retry";
 import { AbortError, FetchError } from "node-fetch";
 import { configJson } from "src/args";
 
-const all_none_safety_settings = [
+const all_safety_category = [
   HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
   HarmCategory.HARM_CATEGORY_HARASSMENT,
   HarmCategory.HARM_CATEGORY_HATE_SPEECH,
   HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-  "HARM_CATEGORY_CIVIC_INTEGRITY" as any,
+  "HARM_CATEGORY_CIVIC_INTEGRITY" as any as HarmCategory,
   // HarmCategory.HARM_CATEGORY_UNSPECIFIED,
-].map((x) => ({
-  category: x,
-  threshold: HarmBlockThreshold.BLOCK_NONE,
-}));
+];
+const all_none_safety_settings = {
+  v1: all_safety_category.map((x) => ({
+    category: x,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  })),
+  v2: all_safety_category.map((x) => ({
+    category: x,
+    threshold: "OFF" as HarmBlockThreshold.BLOCK_NONE,
+  })),
+};
 
 // 定义请求体的 Zod Schema
 const CHAT_COMPLETION_SCHEMA = z.object({
@@ -146,6 +154,7 @@ class ChatCompletionsHandler {
   private includeUsage: boolean;
   private id: string;
   private firstChunkSent: boolean = false;
+  private is_gemini_2: boolean = false;
 
   private chunks: any[] = [];
 
@@ -172,6 +181,7 @@ class ChatCompletionsHandler {
     this.reply = reply;
     this.includeUsage = body.stream_options?.include_usage ?? false;
     this.id = "chatcmpl-" + Math.random().toString(16).slice(2);
+    this.is_gemini_2 = body.model.includes("gemini-2");
   }
 
   private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
@@ -413,6 +423,52 @@ class ChatCompletionsHandler {
     this.firstChunkSent = true;
   }
 
+  private parseGError(error: any) {
+    let obj: any = {};
+    let message: string = "";
+    let name: string = "";
+    if (error instanceof GoogleGenerativeAIResponseError) {
+      // NOTE: 生成过程中报错
+      obj = error.response as GenerateContentResponse;
+      message = error.message;
+      name = error.name;
+    }
+    if (error instanceof GoogleGenerativeAIFetchError) {
+      // NOTE: 请求就报错
+      obj = error.errorDetails;
+      message = error.message;
+      name = error.name;
+    }
+    if (!name) {
+      // 其他 error
+      return null;
+    }
+    return {
+      obj,
+      message,
+      name,
+    };
+  }
+
+  private buildGErrorResponse(error: any) {
+    const data = this.parseGError(error);
+    if (!data) return null;
+    const { obj, message, name } = data;
+    const mode = configJson.error?.mode ?? "throw";
+    switch (mode) {
+      case "throw": {
+        return null;
+      }
+      case "json": {
+        return "\n\n```json\n" + JSON.stringify(obj, null, 2) + "\n```";
+      }
+      case "str": {
+        return `\n\n[${name}] ${message}`;
+      }
+    }
+    return null;
+  }
+
   private async handleStream() {
     const payload = await this.buildGeneratePayload();
     // writeFileSync(
@@ -425,7 +481,9 @@ class ChatCompletionsHandler {
         systemInstruction: payload.systemInstruction,
         contents: payload.contents,
         generationConfig: payload.generationConfig,
-        safetySettings: all_none_safety_settings,
+        safetySettings: this.is_gemini_2
+          ? all_none_safety_settings.v2
+          : all_none_safety_settings.v1,
       },
       {
         signal: abortSignal.signal,
@@ -471,6 +529,22 @@ class ChatCompletionsHandler {
 
       console.error("Stream error:", error);
 
+      const message = this.buildGErrorResponse(error);
+      if (message) {
+        const errorChunk = this.buildChunkData({
+          text: message,
+          finishReason: "error",
+          usage: {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+          },
+        });
+        this.reply.raw.write("data: " + JSON.stringify(errorChunk) + "\n\n");
+        this.reply.raw.end();
+        return;
+      }
+
       if (this.firstChunkSent) {
         // 如果是在途中报错，那就 DONE
         this.reply.raw.write("data: [DONE]\n\n");
@@ -496,7 +570,9 @@ class ChatCompletionsHandler {
         systemInstruction: payload.systemInstruction,
         contents: payload.contents,
         generationConfig: payload.generationConfig,
-        safetySettings: all_none_safety_settings,
+        safetySettings: this.is_gemini_2
+          ? all_none_safety_settings.v2
+          : all_none_safety_settings.v1,
       });
 
       const content = await result.response.text();

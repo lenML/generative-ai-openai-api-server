@@ -34,6 +34,15 @@ export const configJson = JSON.parse(fs.readFileSync(config, "utf8")) as {
     };
   };
   bodyLimit?: number;
+  // error catcher settings
+  error?: {
+    /**
+     * throw: 默认模式，直接报错走 fastify 的 error catch
+     * json: 将会以 json 形式返回错误
+     * str: 将会以 str 形式返回错误，并且只保留 message
+     */
+    mode?: "throw" | "json" | "str";
+  };
 };
 
 if (configJson.api_keys.length === 0) {

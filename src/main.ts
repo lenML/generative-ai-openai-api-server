@@ -58,9 +58,8 @@ app.after(async () => {
   });
 
   await app.register(cors, {
-    origin: true,
-    preflight: false,
-    strictPreflight: false,
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   });
 
   const plugins = [
