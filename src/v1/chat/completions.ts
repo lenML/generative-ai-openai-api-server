@@ -10,6 +10,7 @@ import { gen_ai_hub } from "src/genAI";
 import fetch from "src/utils/fetch";
 import {
   GenerateContentResponse,
+  GenerateContentResult,
   GenerationConfig,
   GoogleGenerativeAIError,
   GoogleGenerativeAIFetchError,
@@ -438,6 +439,12 @@ class ChatCompletionsHandler {
       obj = error.errorDetails;
       message = error.message;
       name = error.name;
+      if (!error.errorDetails || error.errorDetails.length === 0) {
+        obj = {
+          name,
+          message,
+        };
+      }
     }
     if (!name) {
       // 其他 error
@@ -476,21 +483,21 @@ class ChatCompletionsHandler {
     //   JSON.stringify({ ...payload, id: this.id }, null, 2)
     // );
     const abortSignal = new AbortController();
-    const result = await payload.gen_model.generateContentStream(
-      {
-        systemInstruction: payload.systemInstruction,
-        contents: payload.contents,
-        generationConfig: payload.generationConfig,
-        safetySettings: this.is_gemini_2
-          ? all_none_safety_settings.v2
-          : all_none_safety_settings.v1,
-      },
-      {
-        signal: abortSignal.signal,
-      }
-    );
 
     try {
+      const result = await payload.gen_model.generateContentStream(
+        {
+          systemInstruction: payload.systemInstruction,
+          contents: payload.contents,
+          generationConfig: payload.generationConfig,
+          safetySettings: this.is_gemini_2
+            ? all_none_safety_settings.v2
+            : all_none_safety_settings.v1,
+        },
+        {
+          signal: abortSignal.signal,
+        }
+      );
       for await (const chunk of result.stream) {
         if (this.req.socket.closed) {
           abortSignal.abort();
@@ -520,6 +527,8 @@ class ChatCompletionsHandler {
       this.reply.raw.write("data: [DONE]\n\n");
       this.reply.raw.end();
     } catch (error) {
+      this.ensureFirstChunk();
+
       if (error instanceof DOMException && error.name === "AbortError") {
         console.error("Stream aborted:", error);
         this.reply.raw.write("data: [DONE]\n\n");
@@ -565,6 +574,32 @@ class ChatCompletionsHandler {
 
   private async handleSingleResponse() {
     const payload = await this.buildGeneratePayload();
+    const buildResponse = (
+      content: string,
+      result?: GenerateContentResult
+    ) => ({
+      id: this.id,
+      object: "chat.completion",
+      created: Date.now(),
+      model: this.body.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content,
+          },
+          finish_reason:
+            result?.response.candidates?.[0].finishReason ?? "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: result?.response.usageMetadata?.promptTokenCount ?? 0,
+        completion_tokens:
+          result?.response.usageMetadata?.candidatesTokenCount ?? 0,
+        total_tokens: result?.response.usageMetadata?.totalTokenCount ?? 0,
+      },
+    });
     try {
       const result = await payload.gen_model.generateContent({
         systemInstruction: payload.systemInstruction,
@@ -576,33 +611,16 @@ class ChatCompletionsHandler {
       });
 
       const content = await result.response.text();
-      const response = {
-        id: this.id,
-        object: "chat.completion",
-        created: Date.now(),
-        model: this.body.model,
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: "assistant",
-              content,
-            },
-            finish_reason:
-              result.response.candidates?.[0].finishReason ?? "stop",
-          },
-        ],
-        usage: {
-          prompt_tokens: result.response.usageMetadata?.promptTokenCount ?? 0,
-          completion_tokens:
-            result.response.usageMetadata?.candidatesTokenCount ?? 0,
-          total_tokens: result.response.usageMetadata?.totalTokenCount ?? 0,
-        },
-      };
-
+      const response = buildResponse(content);
       this.reply.send(response);
     } catch (error) {
       console.error("Single response error:", error);
+      const message = this.buildGErrorResponse(error);
+      if (message) {
+        const response = buildResponse(message);
+        this.reply.send(response);
+        return;
+      }
       throw error;
     }
   }
