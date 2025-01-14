@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from "fastify";
-import { object, z } from "zod";
+import { z } from "zod";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
-import { genAI } from "src/genAI";
+import { gen_ai_hub } from "src/genAI";
 import { EmbedContentRequest } from "@google/generative-ai";
 
 // 定义请求体的 Zod Schema
@@ -15,6 +15,10 @@ const EMBEDDINGS_SCHEMA = z.object({
 
 function build_embedding_payload(body: z.infer<typeof EMBEDDINGS_SCHEMA>) {
   const { input, model, encoding_format, dimensions, user } = body;
+  const genAI = gen_ai_hub.random();
+  if (!genAI) {
+    throw new Error("no genai available");
+  }
   const gen_model = genAI.getGenerativeModel({
     model: model,
   });
@@ -42,8 +46,8 @@ const embeddingsRoute: FastifyPluginAsync = async (app) => {
     url: "/v1/embeddings",
     schema: { body: EMBEDDINGS_SCHEMA },
     handler: async (req, res) => {
-      const { model } = req.body;
-      const payload = build_embedding_payload(req.body);
+      const { model } = req.body as any;
+      const payload = build_embedding_payload(req.body as any);
 
       const resp = await payload.gen_model.batchEmbedContents({
         requests: payload.requests,
